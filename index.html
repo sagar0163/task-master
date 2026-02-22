@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Master - Manage Your Tasks</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        success: '#22c55e',
+                        warning: '#f59e0b',
+                        danger: '#ef4444',
+                        dark: '#0f0f0f',
+                        surface: '#1a1a1a',
+                        card: '#252525'
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background: #0f0f0f; color: white; font-family: 'Inter', sans-serif; }
+        .glass { background: rgba(26, 26, 26, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+        .task-card { transition: all 0.2s ease; }
+        .task-card:hover { transform: translateX(4px); border-color: #6366f1; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #1a1a1a; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div id="app">
+        <!-- Header -->
+        <header class="glass sticky top-0 z-40 border-b border-white/10">
+            <div class="max-w-7xl mx-auto px-4 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-gradient-to-br from-primary to-purple-400 rounded-xl flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                        </div>
+                        <h1 class="text-xl font-bold">Task Master</h1>
+                    </div>
+                    <button @click="showAddModal = true" class="bg-primary hover:bg-indigo-500 px-4 py-2 rounded-xl font-medium flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                        Add Task
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- Stats -->
+            <div class="grid grid-cols-4 gap-4 mb-8">
+                <div class="glass rounded-xl p-4">
+                    <div class="text-gray-400 text-sm">Total Tasks</div>
+                    <div class="text-2xl font-bold">{{ tasks.length }}</div>
+                </div>
+                <div class="glass rounded-xl p-4">
+                    <div class="text-gray-400 text-sm">Completed</div>
+                    <div class="text-2xl font-bold text-success">{{ completedCount }}</div>
+                </div>
+                <div class="glass rounded-xl p-4">
+                    <div class="text-gray-400 text-sm">In Progress</div>
+                    <div class="text-2xl font-bold text-warning">{{ activeCount }}</div>
+                </div>
+                <div class="glass rounded-xl p-4">
+                    <div class="text-gray-400 text-sm">Overdue</div>
+                    <div class="text-2xl font-bold text-danger">{{ overdueCount }}</div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="flex gap-4 mb-6 flex-wrap">
+                <input v-model="search" type="text" placeholder="Search tasks..." class="bg-surface border border-white/10 rounded-xl px-4 py-2 focus:border-primary focus:outline-none">
+                <select v-model="filterPriority" class="bg-surface border border-white/10 rounded-xl px-4 py-2 focus:border-primary focus:outline-none">
+                    <option value="">All Priorities</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                <select v-model="filterStatus" class="bg-surface border border-white/10 rounded-xl px-4 py-2 focus:border-primary focus:outline-none">
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                </select>
+            </div>
+
+            <!-- Tasks List -->
+            <div class="space-y-3">
+                <div v-for="task in filteredTasks" :key="task.id" class="task-card glass rounded-xl p-4 flex items-center gap-4">
+                    <button @click="toggleTask(task.id)" class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition" :class="task.completed ? 'bg-success border-success' : 'border-gray-500'">
+                        <svg v-if="task.completed" class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                    </button>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <h3 :class="task.completed ? 'line-through text-gray-500' : 'font-medium'">{{ task.title }}</h3>
+                            <span :class="priorityClass(task.priority)" class="px-2 py-0.5 rounded text-xs font-medium capitalize">{{ task.priority }}</span>
+                        </div>
+                        <p v-if="task.description" class="text-sm text-gray-400 mt-1">{{ task.description }}</p>
+                        <div class="flex items-center gap-4 mt-2 text-xs text-gray-500">
+                            <span v-if="task.dueDate" :class="isOverdue(task.dueDate) ? 'text-danger' : ''">📅 {{ formatDate(task.dueDate) }}</span>
+                            <span v-if="task.projectId" class="text-primary">{{ getProjectName(task.projectId) }}</span>
+                        </div>
+                    </div>
+                    <button @click="editTask(task)" class="text-gray-400 hover:text-white p-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    </button>
+                    <button @click="deleteTask(task.id)" class="text-gray-400 hover:text-danger p-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="filteredTasks.length === 0" class="text-center py-12 text-gray-500">
+                No tasks found. Add one to get started!
+            </div>
+        </main>
+
+        <!-- Add/Edit Modal -->
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div class="glass rounded-2xl p-6 w-full max-w-lg">
+                <h2 class="text-xl font-bold mb-4">{{ editingTask ? 'Edit Task' : 'Add New Task' }}</h2>
+                <form @submit.prevent="saveTask" class="space-y-4">
+                    <input v-model="taskForm.title" type="text" placeholder="Task title" class="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 focus:border-primary focus:outline-none" required>
+                    <textarea v-model="taskForm.description" placeholder="Description (optional)" class="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 focus:border-primary focus:outline-none" rows="3"></textarea>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-2">Priority</label>
+                            <select v-model="taskForm.priority" class="w-full bg-surface border border-white/10 rounded-xl px-4 py-2">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-2">Due Date</label>
+                            <input v-model="taskForm.dueDate" type="date" class="w-full bg-surface border border-white/10 rounded-xl px-4 py-2">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 text-sm mb-2">Project</label>
+                        <select v-model="taskForm.projectId" class="w-full bg-surface border border-white/10 rounded-xl px-4 py-2">
+                            <option value="">No Project</option>
+                            <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-4">
+                        <button type="button" @click="closeModal" class="flex-1 bg-surface py-3 rounded-xl">Cancel</button>
+                        <button type="submit" class="flex-1 bg-primary py-3 rounded-xl font-medium">{{ editingTask ? 'Update' : 'Add Task' }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Project Modal -->
+        <div v-if="showProjectModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div class="glass rounded-2xl p-6 w-full max-w-md">
+                <h2 class="text-xl font-bold mb-4">Manage Projects</h2>
+                <form @submit.prevent="saveProject" class="space-y-4 mb-6">
+                    <input v-model="projectForm.name" type="text" placeholder="Project name" class="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 focus:border-primary focus:outline-none" required>
+                    <input v-model="projectForm.color" type="color" class="w-full h-10 rounded-xl">
+                    <button type="submit" class="w-full bg-primary py-3 rounded-xl font-medium">Add Project</button>
+                </form>
+                <div class="space-y-2">
+                    <div v-for="p in projects" :key="p.id" class="flex items-center justify-between bg-surface rounded-xl p-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full" :style="{ background: p.color }"></div>
+                            <span>{{ p.name }}</span>
+                        </div>
+                        <button @click="deleteProject(p.id)" class="text-danger text-sm">Delete</button>
+                    </div>
+                </div>
+                <button @click="showProjectModal = false" class="w-full mt-4 bg-surface py-2 rounded-xl">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed, onMounted } = Vue;
+        createApp({
+            setup() {
+                const tasks = ref([]);
+                const projects = ref([]);
+                const search = ref('');
+                const filterPriority = ref('');
+                const filterStatus = ref('all');
+                const showAddModal = ref(false);
+                const showProjectModal = ref(false);
+                const editingTask = ref(null);
+
+                const taskForm = ref({ title: '', description: '', priority: 'medium', dueDate: '', projectId: '' });
+                const projectForm = ref({ name: '', color: '#6366f1' });
+
+                const filteredTasks = computed(() => {
+                    return tasks.value.filter(t => {
+                        if (search.value && !t.title.toLowerCase().includes(search.value.toLowerCase())) return false;
+                        if (filterPriority.value && t.priority !== filterPriority.value) return false;
+                        if (filterStatus.value === 'active' && t.completed) return false;
+                        if (filterStatus.value === 'completed' && !t.completed) return false;
+                        return true;
+                    });
+                });
+
+                const completedCount = computed(() => tasks.value.filter(t => t.completed).length);
+                const activeCount = computed(() => tasks.value.filter(t => !t.completed).length);
+                const overdueCount = computed(() => tasks.value.filter(t => !t.completed && isOverdue(t.dueDate)).length);
+
+                const loadData = () => {
+                    tasks.value = JSON.parse(localStorage.getItem('tasks') || '[]');
+                    projects.value = JSON.parse(localStorage.getItem('projects') || '[]');
+                };
+
+                const saveData = () => {
+                    localStorage.setItem('tasks', JSON.stringify(tasks.value));
+                    localStorage.setItem('projects', JSON.stringify(projects.value));
+                };
+
+                const toggleTask = (id) => {
+                    const task = tasks.value.find(t => t.id === id);
+                    if (task) {
+                        task.completed = !task.completed;
+                        task.completedAt = task.completed ? new Date().toISOString() : null;
+                        saveData();
+                    }
+                };
+
+                const saveTask = () => {
+                    if (editingTask.value) {
+                        const idx = tasks.value.findIndex(t => t.id === editingTask.value);
+                        if (idx > -1) {
+                            tasks.value[idx] = { ...tasks.value[idx], ...taskForm.value };
+                        }
+                    } else {
+                        tasks.value.push({
+                            id: Date.now().toString(),
+                            ...taskForm.value,
+                            completed: false,
+                            createdAt: new Date().toISOString()
+                        });
+                    }
+                    saveData();
+                    closeModal();
+                };
+
+                const editTask = (task) => {
+                    editingTask.value = task.id;
+                    taskForm.value = { ...task };
+                    showAddModal.value = true;
+                };
+
+                const deleteTask = (id) => {
+                    if (confirm('Delete this task?')) {
+                        tasks.value = tasks.value.filter(t => t.id !== id);
+                        saveData();
+                    }
+                };
+
+                const closeModal = () => {
+                    showAddModal.value = false;
+                    editingTask.value = null;
+                    taskForm.value = { title: '', description: '', priority: 'medium', dueDate: '', projectId: '' };
+                };
+
+                const saveProject = () => {
+                    projects.value.push({ id: Date.now().toString(), ...projectForm.value });
+                    saveData();
+                    projectForm.value = { name: '', color: '#6366f1' };
+                };
+
+                const deleteProject = (id) => {
+                    projects.value = projects.value.filter(p => p.id !== id);
+                    saveData();
+                };
+
+                const getProjectName = (id) => projects.value.find(p => p.id === id)?.name || '';
+
+                const formatDate = (date) => date ? new Date(date).toLocaleDateString() : '';
+
+                const isOverdue = (date) => date && new Date(date) < new Date();
+
+                const priorityClass = (p) => {
+                    const classes = { high: 'bg-danger/20 text-danger', medium: 'bg-warning/20 text-warning', low: 'bg-success/20 text-success' };
+                    return classes[p] || '';
+                };
+
+                onMounted(loadData);
+
+                return {
+                    tasks, projects, search, filterPriority, filterStatus,
+                    showAddModal, showProjectModal, editingTask, taskForm, projectForm,
+                    filteredTasks, completedCount, activeCount, overdueCount,
+                    toggleTask, saveTask, editTask, deleteTask, closeModal,
+                    saveProject, deleteProject, getProjectName, formatDate, isOverdue, priorityClass
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
